@@ -43,6 +43,75 @@ class RaschModelEstimation:
                round(expected_ability + (observed_score - expected_score) / total_variance, 2)
 
 
+def rasch_analysis(name, ability, ability_hat, difficulty, item_result):
+    import numpy as np
+    print("\n  << Rasch Measurement >>  \n  << probability_of_success >>\n")
+    no = 0
+    while ability_hat < 100:
+        print("  Iteration {}".format(no))
+        no += 1
+        expected_ability = RaschModelEstimation(name, ability, lst_of_difficulty=difficulty)
+        lst_success = list(expected_ability.probability_of_success())
+        lst_failure = [one-success for one, success in zip([1] * len(lst_success), lst_success)]
+        lst_variance = expected_ability.lst_variance(lst_success, lst_failure)
+        total_var = sum(lst_variance)
+
+        score_hat = sum(lst_success)
+        obs_score = sum(item_result)
+
+        print("  {}'s ability: {} (ability_hat: {})\n  difficulty: {}\n  expected success: {}  = {}\n  expected failures: {}\n  variance (statistical information): {}\n  total variance: {}".format(
+            expected_ability.name(), ability, ability_hat, difficulty, lst_success, sum(lst_success), lst_failure, lst_variance, round(total_var, 2)))
+
+        ability_hat = expected_ability.newton_raphson(observed_score=obs_score, expected_score=score_hat,
+                                              expected_ability=ability, total_variance=total_var)[0]
+        updated_ability = expected_ability.newton_raphson(observed_score=obs_score, expected_score=score_hat,
+                                              expected_ability=ability, total_variance=total_var)[1]
+        print("  ability_hat: {}, updated_ability: {}\n".format(ability_hat, updated_ability))
+
+        ability += ability_hat
+
+        if ability_hat == 0:
+            print("  >> {}".format(name))
+            print("  >> Estimated ability: {}".format(updated_ability))
+            print("  >> item_result: {}".format(item_result))
+
+            print("\n  >> Maximum Likelihood")
+            t_lst = sorted(list(set(difficulty))) + [updated_ability]
+            t_lst.sort()
+            for ability_h in t_lst:
+                expected_ability = RaschModelEstimation(name, ability_h, lst_of_difficulty=difficulty)
+                lst_success = list(expected_ability.probability_of_success())
+                lst_failure = [one - success for one, success in zip([1] * len(lst_success), lst_success)]
+                expected_success = [a*b for a, b in zip(lst_success, item_result)]
+                expected_failure = [a*b for a, b in
+                                    zip(lst_failure, [abs(a-b) for a, b in zip(item_result, [1] * len(item_result))])]
+                item_result_prob = [a+b for a, b in zip(expected_success, expected_failure)]
+                if len(str(ability_h)) == 1:
+                    # print("  >> list of probabilities: {}".format(item_result_prob))
+                    print("  >> Estimated ability: {}.00 Probability: {}".format(ability_h, np.prod(item_result_prob)))
+                else:
+                    # print("  >> list of probabilities: {}".format(item_result_prob))
+                    print("  >> Estimated ability: {} Probability: {}".format(ability_h, np.prod(item_result_prob)))
+            # fit statistics
+            outfit = round(sum([np.square(a - b) / c for a, b, c in zip(item_result, lst_success, lst_variance)]) / len(item_result), 2)
+            infit = round(sum([np.square(a - b) for a, b in zip(item_result, lst_success)]) / sum(lst_variance), 2)
+            print("\n  >> Outfit: {}\n  >> Infit: {}\n ".format(outfit, infit))
+            break
+    return ability
+
+"""
+example )
+name = 'unique_user'
+ability = 3
+ability_hat = 0
+difficulty = [1, 2, 3, 4, 1, 2, 3, 3, 2, 3, 1, 2, 3, 4, 4, 4, 3, 4, 5, 5]
+item_result = [1, 1, 0, 1, 1, 1, 1, 1, 0, 1, 1, 1, 0, 0, 1, 0, 1, 0, 0, 0]
+
+student_ability = rasch_analysis(test_takers, theta, theta_hat, lst_difficulty, result)
+print(student_ability)
+"""
+
+
 class IrtModel:
 
     def __init__(self, theta, a, b, c):
